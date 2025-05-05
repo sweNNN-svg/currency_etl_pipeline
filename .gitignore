@@ -1,0 +1,10 @@
+.venv/
+.idea/
+__pycache__/
+logs/
+grafana-data/
+*.pyc
+*.db
+.env
+currency.json
+currency-v*.csv

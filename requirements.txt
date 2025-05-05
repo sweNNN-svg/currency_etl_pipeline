@@ -1,0 +1,4 @@
+pandas
+psycopg2-binary
+requests
+apache-airflow==2.9.1
