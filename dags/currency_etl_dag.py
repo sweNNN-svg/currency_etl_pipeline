@@ -1,39 +1,65 @@
 from datetime import datetime, timedelta
 
-import pendulum
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-from scripts.convert import convert_json_to_csv
-from scripts.load import load_data_to_postgres
-from scripts.main import fetch_currency_data
+from scripts.convert import convert_json_to_csv as convert_stage
+
+# GÜNCELLEME: Artık sys.path.append('...') gibi çirkinliklere gerek yok!
+# scripts artık bir paket olduğu için doğrudan import yapıyoruz.
+from scripts.main import main as fetch_stage
+
+# GÜNCELLEME: Load aşaması için yeni adapter yapısını kullanıyoruz
+from scripts.postgres_adapter import PostgresAdapter
+from scripts.transform import main as transform_stage
+from scripts.utils.config import DB_CONFIG, RAW_DATA_CSV
+
+
+def load_stage():
+    """Yeni adapter yapısını kullanan profesyonel load aşaması."""
+    adapter = PostgresAdapter(DB_CONFIG)
+    # Claude'un 'validasyon' uyarısı için kolon isimlerini belirtiyoruz (A03)
+    target_columns = ["base_currency", "target_currency", "rate", "last_updated"]
+
+    adapter.load_csv_to_table(
+        file_path=RAW_DATA_CSV, table_name="exchange_rates", columns=target_columns
+    )
+
 
 default_args = {
-    "owner": "haci",
-    "retries": 3,
+    "owner": "airflow",
+    "depends_on_past": False,
+    "start_date": datetime(2023, 1, 1),
+    "email_on_failure": False,
+    "retries": 1,
     "retry_delay": timedelta(minutes=5),
-    "start_date": datetime(
-        2025, 5, 1, 0, 30, 0, tzinfo=pendulum.timezone("Europe/Istanbul")
-    ),
 }
 
 with DAG(
-    dag_id="currency_etl",
+    "currency_etl_pipeline",
     default_args=default_args,
-    schedule_interval="0 * * * *",
+    description="Professional Currency ETL Pipeline with Clean Architecture",
+    schedule_interval=timedelta(days=1),
     catchup=False,
 ) as dag:
-    t1 = PythonOperator(
-        task_id="fetch_currency_data", python_callable=fetch_currency_data
+    fetch_task = PythonOperator(
+        task_id="fetch_currency_data",
+        python_callable=fetch_stage,
     )
 
-    t2 = PythonOperator(
-        task_id="convert_json_to_csv", python_callable=convert_json_to_csv
+    convert_task = PythonOperator(
+        task_id="convert_json_to_csv",
+        python_callable=convert_stage,
     )
 
-    t3 = PythonOperator(task_id="transform_data", python_callable=transform_data)
-
-    t4 = PythonOperator(
-        task_id="load_to_postgres", python_callable=load_data_to_postgres
+    transform_task = PythonOperator(
+        task_id="transform_data",
+        python_callable=transform_stage,
     )
 
-    t1 >> t2 >> t3 >> t4
+    load_task = PythonOperator(
+        task_id="load_to_postgres",
+        python_callable=load_stage,
+    )
+
+    # Akış: Çek -> Çevir -> İşle -> Yükle
+    fetch_task >> convert_task >> transform_task >> load_task
