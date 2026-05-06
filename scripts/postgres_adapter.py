@@ -17,32 +17,30 @@ logger.setLevel(logging.INFO)
 
 
 class PostgresAdapter(DatabaseAdapter):
-    def connect(self):
-        conn = psycopg2.connect(database="", user="", password="", host="", port="")
-        print("Database Connected....")
+    def __init__(self, db_config):
+        self.db_config = db_config
 
+    def connect(self):
+        return psycopg2.connect(**self.db_config)
+
+    def load_csv_to_table(self, file_path, table_name, columns):
+        conn = self.connect()
         cur = conn.cursor()
-        # open the csv file using python standard file I/O
-        # copy file into the table just created
-        with open("currency-v2.csv", "r") as f:
-            next(f)  # Başlık satırını atla
-            try:
+
+        try:
+            with open(file_path, "r") as f:
+                next(f)  # Başlık satırını atla
                 cur.copy_from(
                     f,
-                    "exchange_rates",
+                    table_name,  # Değişken oldu
                     sep=",",
-                    columns=(
-                        "base_currency",
-                        "target_currency",
-                        "rate",
-                        "last_updated",
-                    ),
+                    columns=columns,  # Değişken oldu
                 )
-            except Exception as e:
-                logger.error(e)
-            # Commit Changes
             conn.commit()
-            # Close connection
+            logger.info(f"Veri başarıyla {table_name} tablosuna yüklendi.")
+        except Exception as e:
+            conn.rollback()  # Hata olursa geri al (Best Practice!)
+            logger.error(f"Yükleme hatası: {e}")
+        finally:
+            cur.close()
             conn.close()
-
-        f.close()
