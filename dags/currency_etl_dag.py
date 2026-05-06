@@ -6,7 +6,6 @@ from airflow.operators.python import PythonOperator
 from scripts.convert import convert_json_to_csv
 from scripts.load import load_data_to_postgres
 from scripts.main import fetch_currency_data
-from scripts.transform import main as transform_data
 
 default_args = {
     "owner": "haci",
