@@ -4,9 +4,6 @@ from datetime import datetime, timedelta
 import pandas as pd
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-from scripts.convert import convert_json_to_csv as convert_stage
-
-# Mutlak importlar (K-4 ve O-1 uyumluluğu için)
 from scripts.main import main as fetch_stage
 from scripts.postgres_adapter import PostgresAdapter
 from scripts.transform import main as transform_stage
@@ -65,11 +62,6 @@ with DAG(
         python_callable=fetch_stage,
     )
 
-    convert_task = PythonOperator(
-        task_id="convert_json_to_csv",
-        python_callable=convert_stage,
-    )
-
     transform_task = PythonOperator(
         task_id="transform_data",
         python_callable=transform_stage,
@@ -81,4 +73,4 @@ with DAG(
     )
 
     # Pipeline Akışı
-    fetch_task >> convert_task >> transform_task >> load_task
+    fetch_task >> transform_task >> load_task

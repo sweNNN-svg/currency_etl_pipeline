@@ -1,5 +1,5 @@
-from utils.config import RAW_DATA_CSV, RAW_DATA_JSON
-from utils.io_handler import read_json_to_df, save_df_to_csv
+from scripts.utils.config import RAW_DATA_CSV, RAW_DATA_JSON
+from scripts.utils.io_handler import read_json_to_df, save_df_to_csv
 
 
 def convert_json_to_csv():

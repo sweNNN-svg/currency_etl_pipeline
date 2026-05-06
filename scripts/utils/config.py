@@ -21,9 +21,9 @@ API_BASE_URL = "https://v6.exchangerate-api.com/v6"
 
 # --- Veritabanı Bilgileri ---
 DB_CONFIG = {
-    "database": os.getenv("DB_NAME", "airflow"),
-    "user": os.getenv("DB_USER", "airflow"),
-    "password": os.getenv("DB_PASSWORD", "airflow"),
+    "database": os.getenv("DB_NAME"),
+    "user": os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASSWORD"),
     "host": os.getenv("DB_HOST", "postgres"),
     "port": os.getenv("DB_PORT", "5432"),
 }

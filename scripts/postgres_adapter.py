@@ -1,7 +1,7 @@
 import logging
 
 import psycopg2
-from database import DatabaseAdapter
+from scripts.database import DatabaseAdapter
 from psycopg2 import sql
 from psycopg2.extras import execute_values
 

@@ -1,11 +1,9 @@
+import json
 import logging
 
 import pandas as pd
 
 from scripts.utils.config import FINAL_DATA_CSV, RAW_DATA_JSON
-from scripts.utils.io_handler import (
-    read_json_to_df,  # Eğer json.load yerine DF dönen bir fonksiyonun varsa
-)
 
 # İsimlendirilmiş Logger (Claude'un A09 uyarısı için)
 logger = logging.getLogger("currency_etl.transform")
@@ -52,9 +50,6 @@ def main():
     logger.info("Transformasyon süreci başlıyor...")
 
     try:
-        # GÜNCELLEME: Hardcoded "currency.json" yerine Config'den gelen yol
-        import json
-
         with open(RAW_DATA_JSON, "r", encoding="utf-8") as f:
             data = json.load(f)
 

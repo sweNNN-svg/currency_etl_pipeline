@@ -8,3 +8,4 @@ grafana-data/
 .env
 currency.json
 currency-v*.csv
+.claude
