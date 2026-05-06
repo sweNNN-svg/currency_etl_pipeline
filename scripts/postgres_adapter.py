@@ -2,9 +2,10 @@ import logging
 
 import psycopg2
 from database import DatabaseAdapter
+from psycopg2.extras import execute_values
 
-# Logger kurulumu
-logger = logging.getLogger(__name__)
+# Claude A09: İsimlendirilmiş logger
+logger = logging.getLogger("currency_etl.postgres_adapter")
 
 
 class PostgresAdapter(DatabaseAdapter):
@@ -20,19 +21,38 @@ class PostgresAdapter(DatabaseAdapter):
             logger.error(f"Veritabanı bağlantı hatası: {e}")
             raise
 
-    def load_csv_to_table(self, file_path, table_name, columns):
-        """CSV dosyasındaki verileri belirtilen tabloya yükler."""
+    def upsert_data(self, df, table_name):
+        """
+        Claude Ölçeklenebilirlik Çözümü: Idempotency.
+        Veriyi insert ederken çakışma (conflict) olursa günceller.
+        Böylece DAG tekrar çalıştığında 'UniqueViolation' hatası almazsın.
+        """
         conn = self.connect()
         cur = conn.cursor()
+
+        # DataFrame'i liste formatına çeviriyoruz
+        values = [tuple(x) for x in df.to_numpy()]
+        cols = ",".join(list(df.columns))
+
+        # UPSERT Sorgusu: base_currency ve target_currency üzerinden çakışma kontrolü yapar
+        query = f"""
+            INSERT INTO {table_name} ({cols})
+            VALUES %s
+            ON CONFLICT (base_currency, target_currency)
+            DO UPDATE SET
+                rate = EXCLUDED.rate,
+                last_updated = EXCLUDED.last_updated;
+        """
+
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                next(f)  # Header satırını atla
-                cur.copy_from(f, table_name, sep=",", columns=columns)
+            execute_values(cur, query, values)
             conn.commit()
-            logger.info(f"Veri başarıyla '{table_name}' tablosuna yüklendi.")
+            logger.info(
+                f"'{table_name}' tablosuna {len(df)} satır başarıyla UPSERT edildi."
+            )
         except Exception as e:
             conn.rollback()
-            logger.error(f"Tabloya veri yükleme hatası ({table_name}): {e}")
+            logger.error(f"Upsert hatası ({table_name}): {e}")
             raise
         finally:
             cur.close()
@@ -40,8 +60,8 @@ class PostgresAdapter(DatabaseAdapter):
 
     def log_metadata(self, base_currency, status_code, record_count):
         """
-        Claude'un bahsettiği 'api_metadata' tablosunu dolduran metod.
-        Her API çekiminin güncesini tutar.
+        Claude 'Ölü Şema' Çözümü:
+        api_metadata tablosunu her çekim sonrası doldurur.
         """
         conn = self.connect()
         cur = conn.cursor()
@@ -52,7 +72,7 @@ class PostgresAdapter(DatabaseAdapter):
         try:
             cur.execute(query, (base_currency, status_code, record_count))
             conn.commit()
-            logger.info("API çekim metadatası veritabanına kaydedildi.")
+            logger.info("Metadata loglama başarılı.")
         except Exception as e:
             conn.rollback()
             logger.error(f"Metadata loglama hatası: {e}")

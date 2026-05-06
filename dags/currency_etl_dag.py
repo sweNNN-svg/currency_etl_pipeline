@@ -1,44 +1,47 @@
 from datetime import datetime, timedelta
 
+import pandas as pd
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from scripts.convert import convert_json_to_csv as convert_stage
 
-# GÜNCELLEME: Artık sys.path.append('...') gibi çirkinliklere gerek yok!
-# scripts artık bir paket olduğu için doğrudan import yapıyoruz.
+# scripts artık bir paket olduğu için doğrudan temiz importlar
 from scripts.main import main as fetch_stage
-
-# GÜNCELLEME: Load aşaması için yeni adapter yapısını kullanıyoruz
 from scripts.postgres_adapter import PostgresAdapter
 from scripts.transform import main as transform_stage
-from scripts.utils.config import DB_CONFIG, RAW_DATA_CSV
+from scripts.utils.config import DB_CONFIG, FINAL_DATA_CSV
 
 
 def load_stage():
-    """Yeni adapter yapısını kullanan profesyonel load aşaması."""
-    adapter = PostgresAdapter(DB_CONFIG)
-    # Claude'un 'validasyon' uyarısı için kolon isimlerini belirtiyoruz (A03)
-    target_columns = ["base_currency", "target_currency", "rate", "last_updated"]
+    """
+    Claude Ölçeklenebilirlik Çözümü:
+    CSV'yi okur ve veritabanına UPSERT (Idempotent) olarak basar.
+    """
+    # Veriyi Pandas ile okuyoruz (Validasyon için ilk adım)
+    df = pd.read_csv(FINAL_DATA_CSV)
 
-    adapter.load_csv_to_table(
-        file_path=RAW_DATA_CSV, table_name="exchange_rates", columns=target_columns
-    )
+    # Adapter'ı başlat ve UPSERT operasyonunu çağır
+    adapter = PostgresAdapter(DB_CONFIG)
+    adapter.upsert_data(df, table_name="exchange_rates")
 
 
 default_args = {
     "owner": "airflow",
     "depends_on_past": False,
-    "start_date": datetime(2023, 1, 1),
+    # Claude A08: start_date'i daha mantıklı bir geçmişe çekiyoruz
+    "start_date": datetime(2024, 1, 1),
     "email_on_failure": False,
-    "retries": 1,
+    "retries": 2,  # Claude: Daha dirençli bir pipeline için retry sayısı artırıldı
     "retry_delay": timedelta(minutes=5),
+    # Claude: Task asılı kalmasın diye timeout (Ölçeklenebilirlik maddesi)
+    "execution_timeout": timedelta(minutes=10),
 }
 
 with DAG(
     "currency_etl_pipeline",
     default_args=default_args,
-    description="Professional Currency ETL Pipeline with Clean Architecture",
-    schedule_interval=timedelta(days=1),
+    description="Professional Currency ETL Pipeline with Upsert & Scalability",
+    schedule_interval="@daily",  # Daha standart bir tanım
     catchup=False,
 ) as dag:
     fetch_task = PythonOperator(
