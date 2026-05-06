@@ -1,30 +1,37 @@
 import json
-from locale import currency
 
 import requests
 
 
-def fetch_currency_data(api_url):
-    # Making our request
-    response = requests.get(api_url)
+def fetch_currency_data(api_key, base_currency="USD"):
+    """API'den döviz verisini çeker."""
+    url = f"https://v6.exchangerate-api.com/v6/{api_key}/latest/{base_currency}"
+    response = requests.get(url)
     response.raise_for_status()
     return response.json()
 
 
 def save_data_to_file(data, file_path):
-    with open("currency.json", "w") as outfile:
+    """Gelen veriyi belirtilen dosya yoluna kaydeder."""
+    # BURASI DÜZELDİ: Sabit isim yerine 'file_path' değişkenini kullanıyoruz.
+    with open(file_path, "w") as outfile:
         json.dump(data, outfile, indent=4)
 
 
 def main():
-    # Where USD is the base currency you want to use
-    url = "https://v6.exchangerate-api.com/v6/YOUR-API-KEY/latest/TRY"
+    # Bu bilgileri ileride bir .env dosyasından okumak daha pro-racon olur.
+    api_key = "YOUR-API-KEY"
+    currency_to_fetch = "TRY"
+
+    # Dosya ismini de dinamik yaptık
+    target_file = f"currency_{currency_to_fetch}.json"
+
     try:
-        data = fetch_currency_data(url)
-        save_data_to_file(data, "currency.json")
-        print("İşlem başarıyla tamamlandı.")
+        data = fetch_currency_data(api_key, currency_to_fetch)
+        save_data_to_file(data, target_file)
+        print(f"Başarılı: {currency_to_fetch} verisi {target_file} dosyasına yazıldı.")
     except Exception as e:
-        print(f"Bir hata oluştu: {e}")
+        print(f"Hata oluştu: {e}")
 
 
 if __name__ == "__main__":
